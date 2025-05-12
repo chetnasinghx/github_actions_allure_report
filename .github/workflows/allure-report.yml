@@ -1,4 +1,3 @@
-# .github/workflows/allure-report.yml
 name: Run Tests and Publish Allure Report with History
 
 on:
