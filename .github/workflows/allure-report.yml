@@ -54,11 +54,16 @@ jobs:
         run: |
           SUMMARY_FILE="allure-report/widgets/summary.json"
           if [[ -f "$SUMMARY_FILE" ]]; then
-            STATS=$(jq -r '
-              .statistic | 
-              "🧪 Total: \(.total) \n ✅ Passed: \(.passed)  \n❌ Failed: \(.failed)  \n⚠️ Broken: \(.broken)  \n🚫 Skipped: \(.skipped)"
-            ' "$SUMMARY_FILE")
-            echo "summary=$STATS" >> $GITHUB_OUTPUT
+            echo "summary<<EOF" >> $GITHUB_OUTPUT
+            jq -r '
+              .statistic |
+              "🧪 Total: \(.total)
+                ✅ Passed: \(.passed)
+                ❌ Failed: \(.failed)
+                ⚠️ Broken: \(.broken)
+                🚫 Skipped: \(.skipped)"
+            ' "$SUMMARY_FILE" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           else
             echo "summary=Allure summary not found" >> $GITHUB_OUTPUT
           fi
