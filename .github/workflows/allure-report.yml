@@ -42,7 +42,7 @@ jobs:
       - name: Install Allure  Commandline
         if: always()
         run: |
-          wget -qO allure-commandline.zip "https://repo.maven.apache.org/maven2/io/qameta/allure/allure-commandline/2.24.0/allure-commandline-2.32.0.zip"
+          wget -qO allure-commandline.zip "https://repo.maven.apache.org/maven2/io/qameta/allure/allure-commandline/2.34.0/allure-commandline-2.34.0.tgz"
           unzip -q allure-commandline.zip -d allure
           echo "PATH=$PATH:$(pwd)/allure/bin" >> $GITHUB_ENV
 
