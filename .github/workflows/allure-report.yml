@@ -75,13 +75,13 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: allure-report
-          destination_dir: allure-reports/${{ github.run_number }}
+          destination_dir: product/api/${{ github.run_number }}
           commit_message: "ci: Allure report for run #${{ github.run_number }}"
 
       - name: Wait for GitHub Pages to become available
         if: always()
         run: |
-          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure-reports/${{ github.run_number }}/"
+          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/product/api/${{ github.run_number }}/"
           echo "Waiting for GitHub Pages to be available..."
           echo "Report Link: $REPORT_URL"
           for i in {1..10}; do
@@ -102,7 +102,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            🔗 **Allure Test Report**: [View Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure-reports/${{ github.run_number }}/)
+            🔗 **Allure Test Report**: [View Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/product/api/${{ github.run_number }}/)
 
             **Test Summary from Allure**
             `${{ steps.allure_summary.outputs.summary }}
