@@ -1,0 +1,55 @@
+name: Deploy Index Page
+
+on:
+  workflow_dispatch:  # Allow manual trigger
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-index.yml'  # Only when this file changes
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Create .github directory
+        run: |
+          mkdir -p .github
+          cp .github/index.html gh-pages/index.html || echo "No source index.html found"
+
+      - name: Deploy Index Page
+        run: |
+          cd gh-pages
+          # Create directory structure if it doesn't exist
+          mkdir -p product/api
+          mkdir -p product/web
+          mkdir -p product/app
+          
+          # Ensure latest.html redirects exist for each project
+          # This is a fallback in case they haven't been created by the test workflows yet
+          for dir in product/api product/web product/app; do
+            if [ ! -f "$dir/latest.html" ]; then
+              echo '<meta http-equiv="refresh" content="0; url=index.html" />' > $dir/latest.html
+            fi
+          done
+          
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Commit and push changes
+          git add index.html product/*/latest.html
+          git commit -m "Update dashboard index page" || echo "No changes to commit"
+          git push || echo "No changes to push"
