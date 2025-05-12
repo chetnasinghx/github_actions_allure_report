@@ -46,14 +46,18 @@ jobs:
           gh_pages: gh-pages
           allure_history: allure-history
           allure_results: allure-results
+          report_dir: allure-report
 
       - name: Extract Allure Summary
         id: allure_summary
         if: always()
         run: |
-          SUMMARY_FILE="allure-history/widgets/summary.json"
+          SUMMARY_FILE="allure-report/widgets/summary.json"
           if [[ -f "$SUMMARY_FILE" ]]; then
-            STATS=$(jq -r '.statistic | "total=\(.total), passed=\(.passed), failed=\(.failed), broken=\(.broken), skipped=\(.skipped)"' "$SUMMARY_FILE")
+            STATS=$(jq -r '
+              .statistic | 
+              "🧪 Total: \(.total)  ✅ Passed: \(.passed)  ❌ Failed: \(.failed)  ⚠️ Broken: \(.broken)  🚫 Skipped: \(.skipped)"
+            ' "$SUMMARY_FILE")
             echo "summary=$STATS" >> $GITHUB_OUTPUT
           else
             echo "summary=Allure summary not found" >> $GITHUB_OUTPUT
@@ -94,5 +98,5 @@ jobs:
           body: |
             🔗 **Allure Test Report**: [View Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)
 
-            ✅ **Test Summary from Allure**
-            `${{ steps.allure_summary.outputs.summary }}`
+            **Test Summary from Allure**
+            `${{ steps.allure_summary.outputs.summary }}
