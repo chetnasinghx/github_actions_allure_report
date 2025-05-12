@@ -27,16 +27,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Tests and Save Summary
+      - name: Run Tests
         run: |
-          pytest tests/ -v --alluredir=allure-results | tee result.log
-          tail -n 50 result.log | grep -E "passed|failed|skipped|warnings|in " > pytest-summary.txt
-
-      - name: Read Pytest Summary
-        id: summary
-        run: |
-          SUMMARY=$(cat pytest-summary.txt | paste -sd "," -)
-          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          pytest tests/ -v --alluredir=allure-results
 
       - name: Checkout gh-pages branch for report history
         uses: actions/checkout@v4
@@ -53,6 +46,18 @@ jobs:
           gh_pages: gh-pages
           allure_history: allure-history
           allure_results: allure-results
+
+      - name: Extract Allure Summary
+        id: allure_summary
+        if: always()
+        run: |
+          SUMMARY_FILE="allure-history/widgets/summary.json"
+          if [[ -f "$SUMMARY_FILE" ]]; then
+            STATS=$(jq -r '.statistic | "total=\(.total), passed=\(.passed), failed=\(.failed), broken=\(.broken), skipped=\(.skipped)"' "$SUMMARY_FILE")
+            echo "summary=$STATS" >> $GITHUB_OUTPUT
+          else
+            echo "summary=Allure summary not found" >> $GITHUB_OUTPUT
+          fi
 
       - name: Deploy Allure Report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3.9.3
@@ -80,14 +85,14 @@ jobs:
             fi
           done
 
-      - name: Comment on PR with Allure Report and Pytest Summary
+      - name: Comment on PR with Allure Report and Test Summary
         if: always() && github.event_name == 'pull_request'
         uses: peter-evans/create-or-update-comment@v3.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            🧪 **Allure Test Report**: [View Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)
+            🔗 **Allure Test Report**: [View Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)
 
-            ✅ **Pytest Summary**
-            `${{ steps.summary.outputs.summary }}
+            ✅ **Test Summary from Allure**
+            `${{ steps.allure_summary.outputs.summary }}`
