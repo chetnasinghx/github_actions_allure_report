@@ -56,6 +56,21 @@ jobs:
           publish_dir: allure-history
           commit_message: "ci: Test Allure report for run ${{ github.run_number }}"
 
+      - name: Wait for GitHub Pages Deployment
+        if: always()
+        run: |
+          echo "Waiting for GitHub Pages to be available..."
+          for i in {1..10}; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }})
+            if [ "$HTTP_STATUS" -eq 200 ]; then
+              echo "GitHub Pages is live!"
+              break
+            else
+              echo "Status: $HTTP_STATUS. Retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+
       - name: Comment PR with Allure report link
         if: always()
         uses: peter-evans/create-or-update-comment@v3.1.0
