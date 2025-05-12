@@ -42,7 +42,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: gh-pages/${{ github.run_number }}
+          publish_dir: allure-history
           commit_message: "ci: allure report for run ${{ github.run_number }}
 
-            View the report for this run here: https://${{ github.event.repository.owner.login }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/"
+                      View the report for this run here: https://${{ github.event.repository.owner.login }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/"
