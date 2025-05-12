@@ -39,12 +39,13 @@ jobs:
           ref: gh-pages
           path: gh-pages
 
-      - name: Install Allure  Commandline
+      - name: Install Allure Commandline
         if: always()
         run: |
-          wget -qO allure-commandline.zip "https://repo.maven.apache.org/maven2/io/qameta/allure/allure-commandline/2.34.0/allure-commandline-2.34.0.tgz"
-          unzip -q allure-commandline.zip -d allure
-          echo "PATH=$PATH:$(pwd)/allure/bin" >> $GITHUB_ENV
+          wget -qO allure-commandline.tgz "https://repo.maven.apache.org/maven2/io/qameta/allure/allure-commandline/2.34.0/allure-commandline-2.34.0.tgz"
+          mkdir -p allure
+          tar -xzf allure-commandline.tgz -C allure --strip-components=1
+          echo "$(pwd)/allure/bin" >> $GITHUB_PATH
 
       - name: Build Allure Test Report
         if: always()
