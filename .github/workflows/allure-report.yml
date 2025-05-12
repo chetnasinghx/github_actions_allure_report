@@ -1,145 +1,45 @@
-name: Generate and Deploy Allure Report to GitHub Pages
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-env:
-  ALLURE_VERSION: "2.23.1"
-  REPORT_URL: "https://chetnasinghx.github.io/github_actions_allure_report"
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
+name: Run tests and publish report
+on: [push]
 jobs:
-  test-and-report:
+  test:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Run Tests
-      run: |
-        python -m pytest tests/ -v --alluredir=allure-results
+      - name: Run Tests
+        run: |
+          python -m pytest tests/ -v --alluredir=allure-results
 
-    - name: Get Allure history
-      uses: actions/checkout@v4
-      if: always()
-      continue-on-error: true
-      with:
-        ref: gh-pages
-        path: gh-pages
+      - name: Load test report history
+        uses: actions/checkout@v3
+        if: always()
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages
 
-    - name: Generate Allure Report
-      uses: simple-elf/allure-report-action@master
-      if: always()
-      with:
-        allure_results: allure-results
-        allure_history: allure-history
-        keep_reports: 20
+      - name: Build test report
+        uses: simple-elf/[email protected]
+        if: always()
+        with:
+          gh_pages: gh-pages
+          allure_history: allure-history
+          allure_results: build/allure-results
 
-    - name: Get Report Stats
-      id: report_stats
-      if: always()
-      run: |
-        TOTAL=$(grep -r 'name' allure-results | wc -l || echo "0")
-        PASSED=$(grep -r '"status":"passed"' allure-results | wc -l || echo "0")
-        FAILED=$(grep -r '"status":"failed"' allure-results | wc -l || echo "0")
-        BROKEN=$(grep -r '"status":"broken"' allure-results | wc -l || echo "0")
-        SKIPPED=$(grep -r '"status":"skipped"' allure-results | wc -l || echo "0")
-        echo "total=$TOTAL" >> $GITHUB_OUTPUT
-        echo "passed=$PASSED" >> $GITHUB_OUTPUT
-        echo "failed=$FAILED" >> $GITHUB_OUTPUT
-        echo "broken=$BROKEN" >> $GITHUB_OUTPUT
-        echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
-
-    - name: Setup Pages
-      uses: actions/configure-pages@v2
-      if: always()
-
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v2
-      if: always()
-      with:
-        path: 'allure-history'
-
-    - name: Deploy to GitHub Pages
-      id: deployment
-      if: always()
-      uses: actions/deploy-pages@v1
-
-    # Comment on PR
-    - name: Find PR Number
-      id: pr
-      if: github.event_name == 'pull_request' && always()
-      run: |
-        echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-
-    - name: Find Comment
-      id: fc
-      if: github.event_name == 'pull_request' && always()
-      uses: peter-evans/find-comment@v2
-      with:
-        issue-number: ${{ steps.pr.outputs.number }}
-        comment-author: 'github-actions[bot]'
-        body-includes: Allure Report for
-
-    - name: Create or Update PR Comment
-      if: github.event_name == 'pull_request' && always()
-      uses: peter-evans/create-or-update-comment@v2
-      with:
-        comment-id: ${{ steps.fc.outputs.comment-id }}
-        issue-number: ${{ steps.pr.outputs.number }}
-        body: |
-          ### 📊 Allure Report for PR #${{ steps.pr.outputs.number }}
-          
-          **Test Results**:
-          - ✅ Passed: ${{ steps.report_stats.outputs.passed }}
-          - ❌ Failed: ${{ steps.report_stats.outputs.failed }}
-          - ⚠️ Broken: ${{ steps.report_stats.outputs.broken }}
-          - ⏭️ Skipped: ${{ steps.report_stats.outputs.skipped }}
-          
-          **View Report**: ${{ env.REPORT_URL }}
-          
-          [View Run Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          
-          _Report generated at: ${{ github.event.repository.updated_at }}_
-        edit-mode: replace
-
-    # Comment on Commit
-    - name: Create Commit Comment
-      if: github.event_name == 'push' && always()
-      uses: peter-evans/commit-comment@v2
-      with:
-        sha: ${{ github.sha }}
-        body: |
-          ### 📊 Allure Report for Commit
-          
-          **Test Results**:
-          - ✅ Passed: ${{ steps.report_stats.outputs.passed }}
-          - ❌ Failed: ${{ steps.report_stats.outputs.failed }}
-          - ⚠️ Broken: ${{ steps.report_stats.outputs.broken }}
-          - ⏭️ Skipped: ${{ steps.report_stats.outputs.skipped }}
-          
-          **View Report**: ${{ env.REPORT_URL }}
-          
-          [View Run Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          
-          _Report generated at: ${{ github.event.repository.updated_at }}_
+      - name: Publish test report
+        uses: peaceiris/actions-gh-pages@v3
+        if: always()
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: allure-history
