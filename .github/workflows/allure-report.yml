@@ -1,3 +1,4 @@
+# .github/workflows/allure-report.yml
 name: Run Tests and Publish Allure Report with History
 
 on:
@@ -5,22 +6,22 @@ on:
     branches: [main]
   pull_request:
 
-# >>>>>>>>>>>>>>>>>>>>>>>>>  CONFIG  <<<<<<<<<<<<<<<<<<<<<<<<<
+# ──────────────────────────────  GLOBAL CONFIG  ──────────────────────────────
 env:
-  PRODUCT: product          # top-level directory
-  MODULE: api               # api | web | app ...
+  PRODUCT: product          # top-level directory (e.g. product, projectX)
+  MODULE: api               # sub-directory   (e.g. api, web, app)
   PYTHON_VERSION: "3.10"
   ALLURE_VERSION: "2.34.0"
-# -----------------------------------------------------------
 
 permissions:
-  contents: write           # push to gh-pages
-  pull-requests: write      # leave PR comments
-  id-token: write           # required by gh-pages action
+  contents: write            # push to gh-pages
+  pull-requests: write       # post PR comment
+  id-token: write            # required by gh-pages action
 
+# cancel older runs on same branch/PR
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true  # abort older runs of same ref
+  cancel-in-progress: true
 
 jobs:
   test-and-report:
@@ -31,91 +32,88 @@ jobs:
         working-directory: ${{ github.workspace }}
 
     steps:
-    # --------------------------------------------------------------------
-    - name: 🧾 Checkout source code
+    # ──────────────────────────  SOURCE & PYTHON SETUP  ──────────────────────────
+    - name: 🧾 Checkout source
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0        # full history for coverage / links
+        fetch-depth: 0                                # full history (coverage, links)
 
-    # --------------------------------------------------------------------
-    - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+    - name: 🐍 Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        cache: "pip"
+        cache: pip                                    # speed-up subsequent runs
 
-    # --------------------------------------------------------------------
     - name: 📦 Install dependencies
       run: |
         set -e
         REQ_FILE="${PRODUCT}/${MODULE}/requirements.txt"
         python -m pip install --upgrade pip
         if [[ -f "$REQ_FILE" ]]; then
-          echo "Installing deps from: $REQ_FILE"
+          echo "Installing deps from $REQ_FILE"
           pip install -r "$REQ_FILE"
         else
           echo "::error::requirements.txt not found at $REQ_FILE"
           exit 1
         fi
-        pip install allure-pytest           # ensures allure markers are present
+        pip install allure-pytest                      # guarantees allure markers
 
-    # --------------------------------------------------------------------
-    - name: 🧪 Run pytest (with Allure results)
+    # ────────────────────────────  TEST EXECUTION  ─────────────────────────────
+    - name: 🧪 Run pytest (Allure)
       id: run_tests
-      continue-on-error: true              # keep pipeline alive for report
+      continue-on-error: true                          # still build report on failure
       run: |
         set -eo pipefail
         TEST_DIR="${PRODUCT}/${MODULE}/tests"
-        [[ -d "$TEST_DIR" ]] || { echo "::error::Tests not found in $TEST_DIR"; exit 1; }
+        [[ -d "$TEST_DIR" ]] || { echo "::error::No tests in $TEST_DIR"; exit 1; }
         pytest "$TEST_DIR" -v --alluredir=allure-results
 
-    # --------------------------------------------------------------------
-    - name: 📂 Checkout gh-pages branch (for history & publish)
-      uses: actions/checkout@v4
+    # ────────────────────────────  HISTORY RESTORE  ────────────────────────────
+    - name: 📂 Checkout gh-pages (for history)
       if: always()
+      uses: actions/checkout@v4
       with:
         ref: gh-pages
         path: gh-pages
 
-    # --------------------------------------------------------------------
     - name: ♻️ Restore previous Allure history
       if: always()
       run: |
         HISTORY_DIR="gh-pages/${PRODUCT}/${MODULE}/last-history"
         if [[ -d "$HISTORY_DIR" ]]; then
           mkdir -p allure-results/history
-          cp -r "${HISTORY_DIR}/." allure-results/history/
-          echo "✅ Restored history from $HISTORY_DIR"
+          cp -r "$HISTORY_DIR/." allure-results/history/
+          echo "✅ History copied from $HISTORY_DIR"
         else
-          echo "ℹ️ No history found – first run for this module."
+          echo "ℹ️ No history found for this module."
         fi
 
-    # --------------------------------------------------------------------
-    - name: ☕ Add Java (needed by Allure CLI)
+    # ─────────────────────────────  ALLURE CLI  ────────────────────────────────
+    - name: ☕ Set up Java (Allure CLI needs it)
       uses: actions/setup-java@v4
       with:
         distribution: temurin
         java-version: "17"
 
-    - name: ⚙️ Install Allure CLI ${{ env.ALLURE_VERSION }}
+    - name: ⚙️ Install Allure CLI
       run: |
         wget -qO allure.tgz "https://repo1.maven.org/maven2/io/qameta/allure/allure-commandline/${ALLURE_VERSION}/allure-commandline-${ALLURE_VERSION}.tgz"
         tar -xzf allure.tgz
         echo "${PWD}/allure-${ALLURE_VERSION}/bin" >> "$GITHUB_PATH"
 
-    # --------------------------------------------------------------------
     - name: 🧱 Generate Allure report
       if: always()
       run: |
         allure generate allure-results --clean -o allure-report
 
-    - name: 💾 Save history for next pipeline
+    # ─────────────────────────────  SAVE HISTORY  ──────────────────────────────
+    - name: 💾 Persist history for next run
       if: always()
       run: |
         mkdir -p gh-pages/${PRODUCT}/${MODULE}/last-history
         cp -r allure-report/history/. gh-pages/${PRODUCT}/${MODULE}/last-history/
 
-    # --------------------------------------------------------------------
+    # ─────────────────────────────  COPY REPORT  ───────────────────────────────
     - name: 📤 Copy report to versioned folder
       if: always()
       run: |
@@ -123,7 +121,7 @@ jobs:
         mkdir -p "$TARGET"
         cp -r allure-report/. "$TARGET/"
 
-    # --------------------------------------------------------------------
+    # ─────────────────────────────  DEPLOY PAGES  ──────────────────────────────
     - name: 🚀 Deploy to GitHub Pages
       if: always()
       uses: peaceiris/actions-gh-pages@v4
@@ -133,25 +131,39 @@ jobs:
         publish_branch: gh-pages
         commit_message: "ci: Allure report ${PRODUCT}/${MODULE} run #${{ github.run_number }}"
 
-    # --------------------------------------------------------------------
+    # ─────────────────────────────  WAIT FOR PAGES  ────────────────────────────
+    - name: ⏳ Wait for GitHub Pages to become available
+      if: always()
+      run: |
+        REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${PRODUCT}/${MODULE}/${{ github.run_number }}/"
+        echo "Waiting for GitHub Pages…"
+        echo "Report link: $REPORT_URL"
+        for i in {1..10}; do
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$REPORT_URL")
+          if [[ "$HTTP_STATUS" == "200" ]]; then
+            echo "✅ Site is live!"
+            break
+          else
+            echo "Status $HTTP_STATUS — retry in 10 s ($i/10)…"
+            sleep 10
+          fi
+        done
+
+    # ───────────────────────  SUMMARY & PR COMMENT  ───────────────────────────
     - name: 📊 Extract Allure summary
       if: always()
       id: summary
       run: |
         SUMMARY_FILE="allure-report/widgets/summary.json"
+        NEWLINE=$'\n'
         if [[ -f "$SUMMARY_FILE" ]]; then
-          NEWLINE=$'\n'
-          STATS=$(jq -r \
-            '.statistic | 
-            "🧪 Total: \(.total)\n✅ Passed: \(.passed)\n❌ Failed: \(.failed)\n⚠️ Broken: \(.broken)\n🚫 Skipped: \(.skipped)"' \
-            "$SUMMARY_FILE")
-          # encode newlines for output
-          echo "result<<EOF${NEWLINE}${STATS}${NEWLINE}EOF" >> $GITHUB_OUTPUT
+          STATS=$(jq -r '.statistic |
+            "🧪 Total: \(.total)\n✅ Passed: \(.passed)\n❌ Failed: \(.failed)\n⚠️ Broken: \(.broken)\n🚫 Skipped: \(.skipped)"' "$SUMMARY_FILE")
+          echo "result<<EOF${NEWLINE}${STATS}${NEWLINE}EOF" >> "$GITHUB_OUTPUT"
         else
-          echo "result<<EOF${NEWLINE}⚠️ Allure summary not found${NEWLINE}EOF" >> $GITHUB_OUTPUT
+          echo "result<<EOF${NEWLINE}⚠️ Allure summary not found${NEWLINE}EOF" >> "$GITHUB_OUTPUT"
         fi
 
-    # --------------------------------------------------------------------
     - name: 💬 Comment test summary on PR
       if: ${{ github.event_name == 'pull_request' }}
       uses: peter-evans/create-or-update-comment@v4
@@ -163,5 +175,5 @@ jobs:
 
           **Test Summary**
           ```
-          ${{ steps.summary.outputs.result }}
+              ${{ steps.summary.outputs.result }}
           ```
