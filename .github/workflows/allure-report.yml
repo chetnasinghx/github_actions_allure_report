@@ -1,4 +1,4 @@
-name: Run tests and publish report
+name: Run Tests and Publish Allure Report
 
 on:
   push:
@@ -6,11 +6,16 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -24,7 +29,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          python -m pytest tests/ -v --alluredir=allure-results
+          pytest tests/ -v --alluredir=allure-results
 
       - name: Load test report history
         uses: actions/checkout@v3
@@ -34,7 +39,7 @@ jobs:
           ref: gh-pages
           path: gh-pages
 
-      - name: Build test report
+      - name: Build Test Allure report
         uses: simple-elf/allure-report-action@v1.7
         if: always()
         with:
@@ -42,70 +47,23 @@ jobs:
           allure_history: allure-history
           allure_results: allure-results
 
-      - name: Publish test report
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Publish Test Allure report to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3.9.3
         if: always()
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: allure-history
-          commit_message: "ci: allure report for run ${{ github.run_number }}
+          commit_message: "ci: Test Allure report for run ${{ github.run_number }}"
 
-                      View the report for this run here: https://${{ github.event.repository.owner.login }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/"
-
-      - name: Wait for GitHub Pages Deployment and Add PR Comment
-        if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v6
-        env:
-          REPORT_URL: https://${{ github.event.repository.owner.login }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/
+      - name: Comment PR with Allure report link
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v3.1.0
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const issueNumber = context.payload.pull_request.number;
-            const reportUrl = process.env.REPORT_URL;
-            const maxRetries = 10;
-            const retryInterval = 5000; // 5 seconds
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            🧪 **Allure Test Report**
+            [🔗 View Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)
 
-            console.log('Waiting for GitHub Pages deployment...');
-
-            for (let i = 0; i < maxRetries; i++) {
-              try {
-                const { data: commit } = await github.rest.repos.getCommit({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: 'gh-pages'
-                });
-
-                const commitDate = new Date(commit.commit.author.date);
-                const now = new Date();
-                const diffInSeconds = (now.getTime() - commitDate.getTime()) / 1000;
-
-                // Check if the last commit on gh-pages was within a recent timeframe (e.g., 30 seconds)
-                if (diffInSeconds < 30) {
-                  console.log('GitHub Pages deployment likely in progress or complete.');
-                  const message = `🔍 Allure Test Report: [View Report](${reportUrl})`;
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: issueNumber,
-                    body: message
-                  });
-                  return; // Exit the loop
-                } else {
-                  console.log(`Last gh-pages commit was ${diffInSeconds} seconds ago. Waiting...`);
-                }
-              } catch (error) {
-                console.error('Error checking gh-pages commit:', error);
-              }
-
-              await new Promise(resolve => setTimeout(resolve, retryInterval));
-            }
-
-            console.log('Max retries reached. Adding comment without guaranteed deployment.');
-            const finalMessage = `⚠️ Allure Test Report: [View Report](${reportUrl}) - Deployment status could not be reliably determined.`;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              body: finalMessage
-            });
+            _Note: GitHub Pages deployment may take a few seconds to complete._
