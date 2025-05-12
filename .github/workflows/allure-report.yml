@@ -66,6 +66,7 @@ jobs:
           echo "$(pwd)/allure/bin" >> $GITHUB_PATH
 
       - name: Generate Allure Report
+        if: always()
         run: |
           allure generate allure-results --clean -o allure-report
 
@@ -77,6 +78,7 @@ jobs:
           cp -r allure-report/history/. "$BASE_PATH/last-history/"
 
       - name: Extract Allure Summary
+        if: always()
         id: allure_summary
         run: |
           SUMMARY_FILE="allure-report/widgets/summary.json"
@@ -96,6 +98,7 @@ jobs:
           fi
 
       - name: Copy current report to gh-pages run folder
+        if: always()
         run: |
           BASE_PATH="gh-pages/${PRODUCT}/${MODULE}/${{ github.run_number }}"
           mkdir -p "$BASE_PATH"
@@ -103,6 +106,7 @@ jobs:
 
       - name: Deploy Allure Report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3.9.3
+        if: always()
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: gh-pages
@@ -110,7 +114,7 @@ jobs:
           commit_message: "ci: Allure report for ${PRODUCT}/${MODULE} run #${{ github.run_number }}"
 
       - name: Comment on PR with Allure Report and Summary
-        if: github.event_name == 'pull_request'
+        if: always()
         uses: peter-evans/create-or-update-comment@v3.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
