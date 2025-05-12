@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 env:
-  PRODUCT: product     # Top-level folder (e.g., product, projectX)
-  MODULE: web          # Subfolder under PRODUCT (e.g., web, api, app)
+  PRODUCT: product     # e.g. product, projectX
+  MODULE: api          # e.g. api, web, app
 
 permissions:
   contents: write
@@ -27,34 +27,53 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 📦 Install dependencies
+      - name: 📦 Install Python dependencies
         if: always()
         run: |
+          REQ_FILE="${{ env.PRODUCT }}/${{ env.MODULE }}/requirements.txt"
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          if [ -f "$REQ_FILE" ]; then
+            echo "📄 Installing from $REQ_FILE"
+            pip install -r "$REQ_FILE"
+          else
+            echo "❌ requirements.txt not found at $REQ_FILE"
+            exit 1
+          fi
 
       - name: 🧪 Run Pytest with Allure
         if: always()
         run: |
-          pytest tests/ -v --alluredir=allure-results
+          TEST_DIR="${{ env.PRODUCT }}/${{ env.MODULE }}/tests"
+          if command -v pytest > /dev/null 2>&1; then
+            if [ -d "$TEST_DIR" ]; then
+              echo "🚀 Running tests in $TEST_DIR"
+              pytest "$TEST_DIR" -v --alluredir=allure-results
+            else
+              echo "❌ Test directory not found at $TEST_DIR"
+              exit 1
+            fi
+          else
+            echo "❌ pytest is not installed"
+            exit 1
+          fi
 
-      - name: 📂 Checkout gh-pages for report history
+      - name: 📂 Checkout gh-pages for history
         if: always()
         uses: actions/checkout@v4
         with:
           ref: gh-pages
           path: gh-pages
 
-      - name: ♻️ Restore previous Allure history
+      - name: ♻️ Restore Allure History
         if: always()
         run: |
-          HISTORY_PATH="gh-pages/${PRODUCT}/${MODULE}/last-history"
-          if [ -d "$HISTORY_PATH" ]; then
+          HISTORY_DIR="gh-pages/${{ env.PRODUCT }}/${{ env.MODULE }}/last-history"
+          if [ -d "$HISTORY_DIR" ]; then
             mkdir -p allure-results/history
-            cp -r "$HISTORY_PATH/." allure-results/history/
-            echo "✅ History restored from $HISTORY_PATH"
+            cp -r "$HISTORY_DIR/." allure-results/history/
+            echo "✅ History restored from $HISTORY_DIR"
           else
-            echo "⚠️ No previous history found at $HISTORY_PATH"
+            echo "⚠️ No previous history found at $HISTORY_DIR"
           fi
 
       - name: ⚙️ Install Allure CLI
@@ -73,10 +92,10 @@ jobs:
       - name: 💾 Save current history for next run
         if: always()
         run: |
-          mkdir -p gh-pages/${PRODUCT}/${MODULE}/last-history
-          cp -r allure-report/history/. gh-pages/${PRODUCT}/${MODULE}/last-history/
+          mkdir -p gh-pages/${{ env.PRODUCT }}/${{ env.MODULE }}/last-history
+          cp -r allure-report/history/. gh-pages/${{ env.PRODUCT }}/${{ env.MODULE }}/last-history/
 
-      - name: 📊 Extract Allure test summary
+      - name: 📊 Extract Allure Summary
         if: always()
         id: allure_summary
         run: |
@@ -96,23 +115,23 @@ jobs:
             echo "summary=⚠️ Allure summary not found" >> $GITHUB_OUTPUT
           fi
 
-      - name: 📤 Copy report to gh-pages directory
+      - name: 📤 Copy report to gh-pages run folder
         if: always()
         run: |
-          REPORT_PATH="gh-pages/${PRODUCT}/${MODULE}/${{ github.run_number }}"
+          REPORT_PATH="gh-pages/${{ env.PRODUCT }}/${{ env.MODULE }}/${{ github.run_number }}"
           mkdir -p "$REPORT_PATH"
           cp -r allure-report/. "$REPORT_PATH/"
 
-      - name: 🚀 Deploy Allure Report to GitHub Pages
+      - name: 🚀 Deploy to GitHub Pages
         if: always()
         uses: peaceiris/actions-gh-pages@v3.9.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: gh-pages
           publish_branch: gh-pages
-          commit_message: "ci: Allure report for ${PRODUCT}/${MODULE} run #${{ github.run_number }}"
+          commit_message: "ci: Allure report for ${{ env.PRODUCT }}/${{ env.MODULE }} run #${{ github.run_number }}"
 
-      - name: 💬 Comment on PR with report summary
+      - name: 💬 Comment on PR with summary
         if: always() && github.event_name == 'pull_request'
         uses: peter-evans/create-or-update-comment@v3.1.0
         with:
