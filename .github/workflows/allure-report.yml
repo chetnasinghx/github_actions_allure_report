@@ -76,13 +76,13 @@ jobs:
         run: |
           BASE_PATH="gh-pages/${PRODUCT}/${MODULE}"
           mkdir -p "$BASE_PATH/last-history"
-          cp -r allure-report/history/. "$BASE_PATH/last-history/"
+          cp -r ${PRODUCT}/${MODULE}/allure-report/history/. "$BASE_PATH/last-history/"
 
       - name: Extract Allure Summary
         if: always()
         id: allure_summary
         run: |
-          SUMMARY_FILE="allure-report/widgets/summary.json"
+          SUMMARY_FILE="${PRODUCT}/${MODULE}/allure-report/widgets/summary.json"
           if [[ -f "$SUMMARY_FILE" ]]; then
             echo "summary<<EOF" >> $GITHUB_OUTPUT
             jq -r '
@@ -103,7 +103,7 @@ jobs:
         run: |
           BASE_PATH="gh-pages/${PRODUCT}/${MODULE}/${{ github.run_number }}"
           mkdir -p "$BASE_PATH"
-          cp -r allure-report/. "$BASE_PATH/"
+          cp -r ${PRODUCT}/${MODULE}/allure-report/. "$BASE_PATH/"
 
       - name: Deploy Allure Report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3.9.3
