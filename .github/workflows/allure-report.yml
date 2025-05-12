@@ -48,7 +48,7 @@ jobs:
           gh_pages: gh-pages
           allure_history: allure-history
           allure_results: allure-results
-          report_dir: allure-report
+          keep_reports: 20
 
       - name: Extract Allure Summary
         id: allure_summary
