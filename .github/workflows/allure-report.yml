@@ -79,6 +79,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: allure-report
+          destination_dir: ${{ github.run_number }}
           commit_message: "ci: Allure report for run #${{ github.run_number }}"
 
       - name: Wait for GitHub Pages to become available
