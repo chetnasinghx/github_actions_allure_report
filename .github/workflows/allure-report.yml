@@ -4,11 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - 'api/**'  # Only trigger when API code changes
+      - 'product/api/**'  # Only trigger when API code changes
   pull_request:
     branches: [main]
     paths:
-      - 'api/**'  # Only trigger when API code changes
+      - 'product/api/**'  # Only trigger when API code changes
   workflow_dispatch:  # Allow manual trigger
 
 permissions:
