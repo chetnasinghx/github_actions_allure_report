@@ -1,5 +1,11 @@
 name: Run tests and publish report
-on: [push]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -46,3 +52,21 @@ jobs:
           commit_message: "ci: allure report for run ${{ github.run_number }}
 
                       View the report for this run here: https://${{ github.event.repository.owner.login }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/"
+
+      - name: Add PR Comment with Report URL
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v6
+        env:
+          REPORT_URL: https://${{ github.event.repository.owner.login }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issueNumber = context.payload.pull_request.number;
+            const message = `🔍 Allure Test Report: [View Report](${process.env.REPORT_URL})`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: message
+            });
