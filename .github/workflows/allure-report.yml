@@ -76,14 +76,14 @@ jobs:
           echo "EOF"                >> "$GITHUB_OUTPUT"
 
       # ─────────── 7. Publish to GitHub Pages ───────────
-      - name: Publish report to gh-pages
+      - name: Deploy Allure Report to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4   # ← v4 is the current tag
         if: always()
-        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token:   ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir:    ${{ env.PROJECT }}/${{ env.MODULE }}/allure-history
-          keep_files:     true                       # keeps other project/module folders
+          publish_dir:    allure-history          # <- just the history folder itself
+          destination_dir: ${{ env.PROJECT }}/${{ env.MODULE }}   # <- 📌 NEW
+          keep_files:     true                    # keeps other projects/modules
           commit_message: "ci: Allure report for run #${{ github.run_number }}"
 
       # ─────────── 8. Wait for the site to go live ───────────
