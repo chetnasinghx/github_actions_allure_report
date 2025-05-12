@@ -57,7 +57,7 @@ jobs:
           commit_message: "ci: Test Allure report for run ${{ github.run_number }}"
 
       - name: Comment PR with Allure report link
-        if: github.event_name == 'pull_request'
+        if: always()
         uses: peter-evans/create-or-update-comment@v3.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
