@@ -60,6 +60,7 @@ jobs:
         if: always()
         run: |
           echo "Waiting for GitHub Pages to be available..."
+          echo "Report Link: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/"
           for i in {1..10}; do
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)
             if [ "$HTTP_STATUS" -eq 200 ]; then
