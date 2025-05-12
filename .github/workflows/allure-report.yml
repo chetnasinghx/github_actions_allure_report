@@ -67,13 +67,21 @@ jobs:
         id: summary
         if: always()
         run: |
-          SUMMARY="\
-          $(jq -r '.statistic
-          | "🧪 Total: \(.total)\n✅ Passed: \(.passed)\n❌ Failed: \(.failed)\n⚠️ Broken: \(.broken)\n🚫 Skipped: \(.skipped)" \
-          ${{ env.PROJECT }}/${{ env.MODULE }}/allure-history/last-history/widgets/summary.json)"
-          echo "summary<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$SUMMARY"           >> "$GITHUB_OUTPUT"
-          echo "EOF"                >> "$GITHUB_OUTPUT"
+          SUMMARY_FILE="allure-report/widgets/summary.json"
+          if [[ -f "$SUMMARY_FILE" ]]; then
+            echo "summary<<EOF" >> $GITHUB_OUTPUT
+            jq -r '
+              .statistic |
+              "🧪 Total: \(.total)
+                ✅ Passed: \(.passed)
+                ❌ Failed: \(.failed)
+                ⚠️ Broken: \(.broken)
+                🚫 Skipped: \(.skipped)"
+            ' "$SUMMARY_FILE" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "summary=Allure summary not found" >> $GITHUB_OUTPUT
+          fi
 
       # ─────────── 7. Publish to GitHub Pages ───────────
       - name: Deploy Allure Report to GitHub Pages
