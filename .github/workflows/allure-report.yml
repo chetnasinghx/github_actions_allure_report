@@ -1,11 +1,10 @@
-name: API Tests with Allure Report
+name: Run Tests and Publish Allure Report
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:  # Allow manual trigger
 
 permissions:
   contents: write
@@ -26,12 +25,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r product/api/requirements.txt
+          pip install -r requirements.txt
 
       - name: Run Tests
         run: |
-          cd product/api
-          pytest tests/ -v --alluredir=../allure-results
+          pytest tests/ -v --alluredir=allure-results
 
       - name: Checkout gh-pages branch for report history
         uses: actions/checkout@v4
@@ -40,15 +38,6 @@ jobs:
         with:
           ref: gh-pages
           path: gh-pages
-
-      - name: Copy history from previous report
-        if: always()
-        continue-on-error: true
-        run: |
-          mkdir -p allure-results/history
-          if [ -d "gh-pages/product/api/history" ]; then
-            cp -r gh-pages/product/api/history/* allure-results/history/
-          fi
 
       - name: Build Allure Test Report
         uses: simple-elf/allure-report-action@v1.7
@@ -69,10 +58,10 @@ jobs:
             jq -r '
               .statistic |
               "🧪 Total: \(.total)
-              ✅ Passed: \(.passed)
-              ❌ Failed: \(.failed)
-              ⚠️ Broken: \(.broken)
-              🚫 Skipped: \(.skipped)"
+                ✅ Passed: \(.passed)
+                ❌ Failed: \(.failed)
+                ⚠️ Broken: \(.broken)
+                🚫 Skipped: \(.skipped)"
             ' "$SUMMARY_FILE" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
@@ -85,10 +74,25 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: allure-results
-          destination_dir: product/api/${{ github.run_number }}
-          keep_files: true
-          commit_message: "ci: API Allure report for run #${{ github.run_number }}"
+          publish_dir: allure-history
+          commit_message: "ci: Allure report for run #${{ github.run_number }}"
+
+      - name: Wait for GitHub Pages to become available
+        if: always()
+        run: |
+          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/"
+          echo "Waiting for GitHub Pages to be available..."
+          echo "Report Link: $REPORT_URL"
+          for i in {1..10}; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$REPORT_URL")
+            if [ "$HTTP_STATUS" -eq 200 ]; then
+              echo "GitHub Pages is live!"
+              break
+            else
+              echo "Status: $HTTP_STATUS. Retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
 
       - name: Comment on PR with Allure Report and Test Summary
         if: always() && github.event_name == 'pull_request'
@@ -97,12 +101,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            ### API Test Results
-            
-            🔗 **Allure Test Report**: 
-            - [View Latest Run](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/product/api/${{ github.run_number }}/)
+            🔗 **Allure Test Report**: [View Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)
 
-            **Test Summary from Allure**
-            ```
+            **Test Summary**
             ${{ steps.allure_summary.outputs.summary }}
-            ```
