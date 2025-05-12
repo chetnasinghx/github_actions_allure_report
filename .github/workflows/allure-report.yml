@@ -7,8 +7,10 @@ on:
     branches: [main]
 
 env:
-  PROJECT: product          # top‑level directory for reports
-  MODULE: api               # sub‑directory (api, app, web, …)
+  PROJECT: product            # top-level folder on gh-pages
+  MODULE:  api                # sub-folder (api, app, web, …)
+  KEEP:    20                 # how many past reports to retain
+  PYTHON:  "3.10"
 
 permissions:
   contents: write
@@ -17,95 +19,95 @@ permissions:
 jobs:
   test-and-report:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      # ─────────── 1. Checkout source ───────────
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+      # ─────────── 2. Python & deps ───────────
+      - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
-
+          python-version: ${{ env.PYTHON }}
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Tests
+      # ─────────── 3. Run tests ───────────
+      - name: Run tests
         run: |
           pytest tests/ -v --alluredir=allure-results
 
-      - name: Checkout gh-pages branch for report history
-        uses: actions/checkout@v4
+      # ─────────── 4. Pull previous history (if any) ───────────
+      - name: Checkout gh-pages for history
         if: always()
-        continue-on-error: true
+        continue-on-error: true          # first run has no history
+        uses: actions/checkout@v4
         with:
           ref: gh-pages
           path: gh-pages
-
-      - name: Build Allure Test Report
-        uses: simple-elf/allure-report-action@v1.7
-        if: always()
-        with:
-          gh_pages: gh-pages/${{ env.PROJECT }}/${{ env.MODULE }}
-          allure_history: allure-history
-          allure_results: allure-results
-          report_dir: allure-report
-
-      - name: Extract Allure Summary
-        id: allure_summary
+      - name: Copy last-history into results
         if: always()
         run: |
-          SUMMARY_FILE="allure-report/widgets/summary.json"
-          if [[ -f "$SUMMARY_FILE" ]]; then
-            echo "summary<<EOF" >> $GITHUB_OUTPUT
-            jq -r '
-              .statistic |
-              "🧪 Total: \(.total)
-                ✅ Passed: \(.passed)
-                ❌ Failed: \(.failed)
-                ⚠️ Broken: \(.broken)
-                🚫 Skipped: \(.skipped)"
-            ' "$SUMMARY_FILE" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "summary=Allure summary not found" >> $GITHUB_OUTPUT
-          fi
+          HIST_PATH="gh-pages/${{ env.PROJECT }}/${{ env.MODULE }}/allure-history/last-history"
+          mkdir -p allure-results/history
+          [ -d "$HIST_PATH" ] && cp -r "$HIST_PATH/." allure-results/history || echo "No previous history"
 
-      - name: Deploy Allure Report to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3.9.3
+      # ─────────── 5. Build report & rotate history ───────────
+      - name: Build Allure report
         if: always()
+        uses: simple-elf/allure-report-action@v1.7
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allure_results: allure-results
+          allure_history: ${{ env.PROJECT }}/${{ env.MODULE }}/allure-history
+          keep_reports:  ${{ env.KEEP }}   # keep only N most-recent reports
+
+      # ─────────── 6. Extract summary (multiline-safe) ───────────
+      - name: Extract Allure summary
+        id: summary
+        if: always()
+        run: |
+          SUMMARY="\
+          $(jq -r '.statistic
+          | "🧪 Total: \(.total)\n✅ Passed: \(.passed)\n❌ Failed: \(.failed)\n⚠️ Broken: \(.broken)\n🚫 Skipped: \(.skipped)" \
+          ${{ env.PROJECT }}/${{ env.MODULE }}/allure-history/last-history/widgets/summary.json)"
+          echo "summary<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$SUMMARY"           >> "$GITHUB_OUTPUT"
+          echo "EOF"                >> "$GITHUB_OUTPUT"
+
+      # ─────────── 7. Publish to GitHub Pages ───────────
+      - name: Publish report to gh-pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token:   ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: ${{ env.PROJECT }}/${{ env.MODULE }}/allure-history
+          publish_dir:    ${{ env.PROJECT }}/${{ env.MODULE }}/allure-history
+          keep_files:     true                       # keeps other project/module folders
           commit_message: "ci: Allure report for run #${{ github.run_number }}"
 
-      - name: Wait for GitHub Pages to become available
+      # ─────────── 8. Wait for the site to go live ───────────
+      - name: Wait for GitHub Pages
         if: always()
         run: |
-          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/"
-          echo "Waiting for GitHub Pages to be available..."
-          echo "Report Link: $REPORT_URL"
-          for i in {1..10}; do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$REPORT_URL")
-            if [ "$HTTP_STATUS" -eq 200 ]; then
-              echo "GitHub Pages is live!"
-              break
-            else
-              echo "Status: $HTTP_STATUS. Retrying in 10 seconds..."
-              sleep 10
-            fi
+          URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ env.PROJECT }}/${{ env.MODULE }}/${{ github.run_number }}/"
+          echo "Report URL: $URL"
+          for i in {1..12}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+            [ "$STATUS" = 200 ] && { echo "Live 🚀"; exit 0; }
+            echo "Status $STATUS – retrying…"; sleep 10
           done
+          echo "::warning ::Page still not up after 2 min"
 
-      - name: Comment on PR with Allure Report and Test Summary
-        if: always() && github.event_name == 'pull_request'
-        uses: peter-evans/create-or-update-comment@v3.1.0
+      # ─────────── 9. PR comment (only on PRs) ───────────
+      - name: Comment on PR with link & summary
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: peter-evans/create-or-update-comment@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            🔗 **Allure Test Report**: [View Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)
+            🔗 **Allure Test Report:** [View](
+            https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ env.PROJECT }}/${{ env.MODULE }}/${{ github.run_number }}/)
 
             **Test Summary**
-            ${{ steps.allure_summary.outputs.summary }}
+            ${{ steps.summary.outputs.summary }}
