@@ -176,5 +176,5 @@ class TestPostsAPI:
             response = api_service.delete_post(random_post_id)
         
         # Verify response (empty 200 OK typically)
-        with allure.step("Verify successful deletion."):
+        with allure.step("Verify successful deletion"):
             assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
