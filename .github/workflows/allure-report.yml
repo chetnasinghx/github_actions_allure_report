@@ -42,7 +42,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: gh-pages/$GITHUB_RUN_NUMBER # Publish the run number subdirectory
-          commit_message: "ci: allure report for run $GITHUB_RUN_NUMBER
+          publish_dir: gh-pages/${{ github.run_number }}
+          commit_message: "ci: allure report for run ${{ github.run_number }}
 
-            View the report for this run here: https://chetnasinghx.github.io/github_actions_allure_report/$GITHUB_RUN_NUMBER/"
+            View the report for this run here: https://${{ github.event.repository.owner.login }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/"
