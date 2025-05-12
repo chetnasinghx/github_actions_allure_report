@@ -76,7 +76,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: product/api/allure-history
+          publish_dir: api/allure-history
           destination_dir: product/api/${{ github.run_number }}
           commit_message: "ci: Allure report for run #${{ github.run_number }}"
 
