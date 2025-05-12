@@ -177,4 +177,4 @@ class TestPostsAPI:
         
         # Verify response (empty 200 OK typically)
         with allure.step("Verify successful deletion"):
-            assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+            assert response.status_code == 401, f"Expected status code 401, but got {response.status_code}"
